@@ -1,0 +1,83 @@
+#!/bin/sh
+
+filename="${0##*/}"
+
+function usage(){
+    echo "usage: ${filename} -p <pid> [-t <seconds>] [-h]"
+}
+
+function monitor_process_net_tx_rx(){
+    local pid="$1"
+    local dev_file="/proc/${pid}/net/dev"
+    if [ ! -f ${dev_file} ]; then
+        return -1
+    fi
+    
+    local ifaces=$(cat ${dev_file} | sed -n '3,$p' | awk '{print $1}' | cut -d: -f1)
+    local ifaces_rx=$(cat ${dev_file} | sed -n '3,$p' | awk '{print $2}')
+    local ifaces_tx=$(cat ${dev_file} | sed -n '3,$p' | awk '{print $10}')
+
+    local NRs=$(echo ${ifaces} | awk '{print NF}')
+
+    local time=$(date +%H:%M:%S)
+    printf "%s\n" \
+    "------------------------------pid:${pid},time:${time}-------------------------------"
+    printf "|%-15s| |%-10s|%-10s| |%-10s|%-10s| |%-10s|%-10s\n" \
+    "interface" "recv(KB)" "tran(KB)" "recv(MB)" "tran(MB)" "recv(GB)" "tran(GB)"
+    for((i=1; i<=NRs; i++))
+    do
+        local iface=$(echo ${ifaces} | awk '{print $'$i'}')
+        local rx=$(echo ${ifaces_rx} | awk '{print $'$i'}')
+        local rx_KB=$(echo ${rx} | awk '{print rshift($1,10)}')
+        local rx_MB=$(echo ${rx} | awk '{print rshift($1,20)}')
+        local rx_GB=$(echo ${rx} | awk '{print rshift($1,30)}')
+        local tx=$(echo ${ifaces_tx} | awk '{print $'$i'}')
+        local tx_KB=$(echo ${tx} | awk '{print rshift($1,10)}')
+        local tx_MB=$(echo ${tx} | awk '{print rshift($1,20)}')
+        local tx_GB=$(echo ${tx} | awk '{print rshift($1,30)}')
+        printf "|%-15s| |%-10s|%-10s| |%-10s|%-10s| |%-10s|%-10s\n" \
+        "${iface}" "${rx_KB}" "${tx_KB}" "${rx_MB}" "${tx_MB}" "${rx_GB}" "${tx_GB}"
+    done
+}
+
+pid="$2"
+freq=1
+
+if [ "$#" -ge 2 ]; then
+    while getopts "p:t:h" opt; do
+        case ${opt} in
+            p)
+                pid=${OPTARG}
+                ;;
+            t)
+                freq=${OPTARG}
+                ;;
+            h)
+                usage
+                exit 0
+                ;;
+            :)
+                usage
+                exit 0
+                ;;
+            ?)
+                usage
+                exit 0
+                ;;
+        esac
+    done
+
+    if [ ! "${pid}" ] || [ ! -f "/proc/${pid}/net/dev" ]; then
+        echo "no file /proc/${pid}/net/dev/ found!"
+        usage
+        exit -1
+    fi
+
+    while [ 1 ]; do
+        monitor_process_net_tx_rx ${pid} 
+        sleep ${freq}
+    done
+else
+    usage
+    exit 0
+fi
