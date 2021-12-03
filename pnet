@@ -52,15 +52,7 @@ if [ "$#" -ge 2 ]; then
             t)
                 freq=${OPTARG}
                 ;;
-            h)
-                usage
-                exit 0
-                ;;
-            :)
-                usage
-                exit 0
-                ;;
-            ?)
+            *)
                 usage
                 exit 0
                 ;;
